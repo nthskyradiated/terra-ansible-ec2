@@ -1,0 +1,5 @@
+bucket = "pumpfactory-tf-s3-bucket"
+key = "global/s3/pumpfactory.tfstate"
+region = "us-east-2"
+dynamodb_table = "pumpfactory-tf-Dynamodb-table"
+encrypt = "true"
