@@ -1,0 +1,19 @@
+---
+- name: Install nginx
+  apt:
+    name: nginx
+    state: latest
+    update_cache: yes
+- name: ensure nginx is running
+  systemd:
+    name: nginx
+    state: started
+# - name: install jq
+#   apt:
+#     name: jq
+#     state: latest
+#     update_cache: yes
+# - name: ensure jq is running
+#   systemd:
+#     name: jq
+#     state: started

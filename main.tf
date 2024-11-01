@@ -51,11 +51,6 @@ resource "aws_security_group" "terra-ansible-sg" {
   name        = "terra-ansible-sg"
   description = "Allow inbound traffic"
   vpc_id      = aws_vpc.terra-ansible-vpc.id
-}
-
-resource "aws_security_group" "nginx" {
-  name = "nginx"
-
   ingress {
     from_port   = 22
     to_port     = 22
@@ -80,30 +75,50 @@ resource "aws_security_group" "nginx" {
 
 resource "aws_key_pair" "deployer" {
   key_name   = local.key_name
-  public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM5KnlGIOuJXF+rm22VqIZx6DfzOA49A1t6s9Civ6DGl andy.pandaan@outlook.com"
+  public_key = var.public_key
 }
 
 resource "aws_instance" "terra-ansible" {
-  count                       = 3
-  ami                         = "ami-0e86e20dae9224db8"
-  instance_type               = "t2.micro"
+  count                       = var.instance_count
+  ami                         = "ami-0e86e20dae9224db8" # adjsust if needed
+  instance_type               = "t2.micro" # adjust if needed
   vpc_security_group_ids      = [aws_security_group.terra-ansible-sg.id]
   key_name                    = local.key_name
   subnet_id                   = aws_subnet.terra-ansible-subnet.id
-  associate_public_ip_address = true # Ensure public IP is assigned
+  associate_public_ip_address = true
 
   tags = {
     Name = "terra-ansible-${count.index}"
   }
+
+
+  provisioner "remote-exec" {
+    inline = ["echo 'Wait until SSH is ready'"]
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu" # Adjust if needed
+      private_key = file(local.private_key_path)
+      host        = self.public_ip
+    }
+  }
 }
 
-# Provisioning with null_resource to avoid cycle dependency
-resource "null_resource" "ansible_provision" {
-  # Use a dynamic inventory from instance public IPs
-  depends_on = [aws_instance.terra-ansible] # Ensure instances are created first
+# Null resource to trigger ansible-playbook run after instance creation
+resource "terraform_data" "ansible_provision" {
+  depends_on = [aws_instance.terra-ansible]
 
-  # Execute Ansible playbook with local-exec
   provisioner "local-exec" {
-    command = "ansible-playbook -i ${join(",", aws_instance.terra-ansible[*].public_ip)}, --private-key ${local.private_key_path} nginx.yaml"
+    command = "ansible-playbook -i '${join(",", aws_instance.terra-ansible.*.public_ip)},' --private-key ${local.private_key_path} nginx.yaml"
+  }
+}
+
+
+resource "null_resource" "write_inventory" {
+  # This ensures that this resource depends on all instances being created
+  depends_on = [aws_instance.terra-ansible]
+
+  provisioner "local-exec" {
+    command = "bash ./write_inventory.sh"
   }
 }
